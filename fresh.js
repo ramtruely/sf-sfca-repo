@@ -69,7 +69,7 @@ sf data create record \
 Rule__c=${violation.rule}
 Engine__c=${violation.engine}
 Message__c='${(violation.message || '').replace(/'/g,'')}
-Severity__c=${violation.severity}
+Severity__c=${severityMap[violation.severity] || 'INFO'}
 Start_Line__c=${location.startLine}
 End_Line__c=${location.endLine}
 Start_Column__c=${location.startColumn}
