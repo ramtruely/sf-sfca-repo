@@ -1,0 +1,7 @@
+{
+  "name": "sf-sfca-repo",
+  "version": "1.0.0",
+  "dependencies": {
+    "jsforce": "^3.8.1"
+  }
+}

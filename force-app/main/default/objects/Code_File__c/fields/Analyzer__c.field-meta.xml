@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Analyzer__c</fullName>
+    <label>Analyzer</label>
+    <referenceTo>Code_Analyzer__c</referenceTo>
+    <relationshipLabel>Code Files</relationshipLabel>
+    <relationshipName>CodeFiles</relationshipName>
+    <type>Lookup</type>
+</CustomField>
