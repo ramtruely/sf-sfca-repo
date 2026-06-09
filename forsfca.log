@@ -1,0 +1,62 @@
+sf org login web \
+--alias DXVIZDEV \
+--instance-url https://test.salesforce.com
+---
+sf org login web \
+--alias DXVIZDEV \
+--instance-url https://test.salesforce.com
+
+---
+sf org display \
+-o DXVIZDEV \
+--verbose
+
+----
+package.json
+--
+{
+  "name": "sfca-loader",
+  "version": "1.0.0"
+}
+-----
+name: Load SFCA Results
+
+on:
+  workflow_dispatch:
+
+jobs:
+
+  load-results:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Salesforce CLI
+        run: npm install -g @salesforce/cli
+
+      - name: Authenticate Salesforce
+        run: |
+          echo "${{ secrets.SF_AUTH_URL }}" > auth.txt
+
+          sf org login sfdx-url \
+            --sfdx-url-file auth.txt \
+            --alias DXVIZDEV
+
+      - name: Set Default Org
+        run: |
+          sf config set target-org=DXVIZDEV
+
+      - name: Verify Org
+        run: |
+          sf org display
+
+      - name: Execute Loader
+        run: |
+          node scripts/load-sfca.js
