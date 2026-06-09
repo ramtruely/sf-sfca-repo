@@ -74,9 +74,8 @@ jobs:
           name: sfca-results
           path: sfca-results.json
 
-      - name: Show Deploy Result
+      - name: Describe Object
         run: |
-          sf project deploy start \
-          --source-dir force-app \
+          sf data query \
           --target-org SFCA \
-          --verbose 
+          --query "SELECT QualifiedApiName FROM EntityDefinition WHERE QualifiedApiName LIKE 'Code%'"
