@@ -1,13 +1,26 @@
 ---
 const fs = require('fs');
 const jsforce = require('jsforce');
+const { execSync } = require('child_process');
+
+async function getConnection() {
+
+    const org = JSON.parse(
+        execSync(
+            'sf org display --target-org dxvizdev --verbose --json',
+            { encoding: 'utf8' }
+        )
+    );
+
+    return new jsforce.Connection({
+        instanceUrl: org.result.instanceUrl,
+        accessToken: org.result.accessToken
+    });
+}
 
 async function main() {
 
-    const conn = new jsforce.Connection({
-        instanceUrl: process.env.SF_INSTANCE_URL,
-        accessToken: process.env.SF_ACCESS_TOKEN
-    });
+    const conn = await getConnection();
 
     const data = JSON.parse(
         fs.readFileSync('./sfca_results.json', 'utf8')
@@ -50,24 +63,44 @@ async function main() {
 
     const scanRunId = runResult.id;
 
-    console.log(`Created Scan_Run__c: ${scanRunId}`);
+    console.log(
+        `Created Scan_Run__c ${scanRunId}`
+    );
 
     for (const violation of data.violations || []) {
 
         const violationResult =
-            await conn.sobject('Scan_Violation__c').create({
+            await conn.sobject(
+                'Scan_Violation__c'
+            ).create({
 
-                Scan_Run__c: scanRunId,
-                Rule__c: violation.rule,
-                Engine__c: violation.engine,
-                Severity__c: violation.severity,
+                Scan_Run__c:
+                    scanRunId,
+
+                Rule__c:
+                    violation.rule,
+
+                Engine__c:
+                    violation.engine,
+
+                Severity__c:
+                    violation.severity,
+
                 Primary_Location_Index__c:
-                    violation.primaryLocationIndex || 0,
-                Message__c: violation.message || '',
+                    violation.primaryLocationIndex,
+
+                Message__c:
+                    violation.message,
+
                 Tags__c:
-                    (violation.tags || []).join(','),
+                    JSON.stringify(
+                        violation.tags || []
+                    ),
+
                 Resources__c:
-                    (violation.resources || []).join(',')
+                    JSON.stringify(
+                        violation.resources || []
+                    )
             });
 
         const violationId =
@@ -75,33 +108,33 @@ async function main() {
 
         for (const location of violation.locations || []) {
 
-            await conn
-                .sobject('Violation_Location__c')
-                .create({
+            await conn.sobject(
+                'Violation_Location__c'
+            ).create({
 
-                    Scan_Violation__c:
-                        violationId,
+                Scan_Violation__c:
+                    violationId,
 
-                    File_Path__c:
-                        location.file,
+                File_Path__c:
+                    location.file,
 
-                    Start_Line__c:
-                        location.startLine,
+                Start_Line__c:
+                    location.startLine,
 
-                    Start_Column__c:
-                        location.startColumn,
+                Start_Column__c:
+                    location.startColumn,
 
-                    End_Line__c:
-                        location.endLine,
+                End_Line__c:
+                    location.endLine,
 
-                    End_Column__c:
-                        location.endColumn
-                });
+                End_Column__c:
+                    location.endColumn
+            });
         }
     }
 
     console.log(
-        'SFCA Results Uploaded Successfully'
+        'SFCA upload completed successfully'
     );
 }
 
