@@ -1,35 +1,35 @@
 name: SFCA Pipeline
 
 on:
-  push:
-    branches:
-      - feature-ram-sfca
-
   pull_request:
     branches:
       - develop
 
 jobs:
 
-  sfca:
+  sfca-analysis:
 
     runs-on: ubuntu-latest
 
+    env:
+      GITHUB_SHA: ${{ github.sha }}
+      GITHUB_REF_NAME: ${{ github.ref_name }}
+
     steps:
 
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup NodeJS
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
 
       - name: Install Salesforce CLI
         run: |
           npm install -g @salesforce/cli
 
-      - name: Authenticate Org
+      - name: Authenticate Salesforce
         run: |
           echo "${{ secrets.SF_AUTH_URL }}" > auth.txt
 
@@ -37,15 +37,19 @@ jobs:
             --sfdx-url-file auth.txt \
             --alias SFCA
 
-      - name: Deploy Metadata
+      - name: Verify Org
+        run: |
+          sf org display --target-org SFCA
+
+      - name: Deploy Salesforce Metadata
         run: |
           sf project deploy start \
             --target-org SFCA \
             --source-dir force-app
 
-      - name: Install Scanner
+      - name: Install Salesforce Code Analyzer
         run: |
-          sf plugins install @salesforce/sfdx-scanner
+          echo y | sf plugins install @salesforce/sfdx-scanner
 
       - name: Run SFCA
         run: |
@@ -58,13 +62,11 @@ jobs:
         run: |
           npm install
 
-      - name: Load Results
-        env:
-          SF_AUTH_URL: ${{ secrets.SF_AUTH_URL }}
+      - name: Load Results To Salesforce
         run: |
           node scripts/load-sfca.js
 
-      - name: Upload Report
+      - name: Upload SFCA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: sfca-results
