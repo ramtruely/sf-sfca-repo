@@ -1,23 +1,29 @@
-name: SFCA Pipeline
+name: Salesforce Code Analyzer Pipeline
 
 on:
   pull_request:
     branches:
       - develop
 
+permissions:
+  contents: read
+
 jobs:
   sfca-analysis:
+
     runs-on: ubuntu-latest
 
     env:
-      GITHUB_SHA: ${{ github.sha }}
+      TARGET_ORG: SFCA
       BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+      COMMIT_ID: ${{ github.sha }}
 
     steps:
+
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup NodeJS
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -32,19 +38,20 @@ jobs:
 
           sf org login sfdx-url \
             --sfdx-url-file auth.txt \
-            --alias SFCA
+            --alias $TARGET_ORG
 
       - name: Set Default Org
         run: |
-          sf config set target-org=SFCA
+          sf config set target-org=$TARGET_ORG
 
       - name: Verify Org
         run: |
-          sf org display
+          sf org display --target-org $TARGET_ORG
 
       - name: Deploy Salesforce Metadata
         run: |
           sf project deploy start \
+            --target-org $TARGET_ORG \
             --source-dir force-app \
             --ignore-conflicts \
             --wait 30
@@ -53,29 +60,27 @@ jobs:
         run: |
           echo y | sf plugins install @salesforce/sfdx-scanner
 
-      - name: Run SFCA
+      - name: Run Salesforce Code Analyzer
         run: |
           sf scanner run \
             --target force-app \
             --format json \
             --outfile sfca-results.json
 
-      - name: Install NPM Dependencies
+      - name: Install Node Dependencies
         run: |
           npm install
 
-      - name: Load Results To Salesforce
+      - name: Load SFCA Results Into Salesforce
+        env:
+          TARGET_ORG: SFCA
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+          COMMIT_ID: ${{ github.sha }}
         run: |
           node scripts/load-sfca.js
 
-      - name: Upload SFCA Report
+      - name: Upload SFCA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: sfca-results
           path: sfca-results.json
-
-      - name: Describe Object
-        run: |
-          sf data query \
-          --target-org SFCA \
-          --query "SELECT QualifiedApiName FROM EntityDefinition WHERE QualifiedApiName LIKE 'Code%'"
