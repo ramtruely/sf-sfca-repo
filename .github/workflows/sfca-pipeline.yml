@@ -1,0 +1,71 @@
+name: SFCA Pipeline
+
+on:
+  push:
+    branches:
+      - feature-ram-sfca
+
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+
+  sfca:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Salesforce CLI
+        run: |
+          npm install -g @salesforce/cli
+
+      - name: Authenticate Org
+        run: |
+          echo "${{ secrets.SF_AUTH_URL }}" > auth.txt
+
+          sf org login sfdx-url \
+            --sfdx-url-file auth.txt \
+            --alias SFCA
+
+      - name: Deploy Metadata
+        run: |
+          sf project deploy start \
+            --target-org SFCA \
+            --source-dir force-app
+
+      - name: Install Scanner
+        run: |
+          sf plugins install @salesforce/sfdx-scanner
+
+      - name: Run SFCA
+        run: |
+          sf scanner run \
+            --target force-app \
+            --format json \
+            --outfile sfca-results.json
+
+      - name: Install Dependencies
+        run: |
+          npm install
+
+      - name: Load Results
+        env:
+          SF_AUTH_URL: ${{ secrets.SF_AUTH_URL }}
+        run: |
+          node scripts/load-sfca.js
+
+      - name: Upload Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: sfca-results
+          path: sfca-results.json
