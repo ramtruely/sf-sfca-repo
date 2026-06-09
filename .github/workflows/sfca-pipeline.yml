@@ -6,17 +6,14 @@ on:
       - develop
 
 jobs:
-
   sfca-analysis:
-
     runs-on: ubuntu-latest
 
     env:
       GITHUB_SHA: ${{ github.sha }}
-      GITHUB_REF_NAME: ${{ github.ref_name }}
+      BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
 
     steps:
-
       - name: Checkout Repository
         uses: actions/checkout@v4
 
@@ -37,15 +34,19 @@ jobs:
             --sfdx-url-file auth.txt \
             --alias SFCA
 
+      - name: Set Default Org
+        run: |
+          sf config set target-org=SFCA
+
       - name: Verify Org
         run: |
-          sf org display --target-org SFCA
+          sf org display
 
       - name: Deploy Salesforce Metadata
         run: |
           sf project deploy start \
-            --target-org SFCA \
-            --source-dir force-app
+            --source-dir force-app \
+            --ignore-conflicts
 
       - name: Install Salesforce Code Analyzer
         run: |
