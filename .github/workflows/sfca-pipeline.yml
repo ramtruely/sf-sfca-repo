@@ -40,6 +40,12 @@ jobs:
             --sfdx-url-file auth.txt \
             --alias $TARGET_ORG
 
+      - name: Describe Object Fields
+        run: |
+          sf sobject describe \
+          --sobject Code_Analyzer__c \
+          --target-org SFCA      
+
       - name: Set Default Org
         run: |
           sf config set target-org=$TARGET_ORG
