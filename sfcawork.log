@@ -1,0 +1,190 @@
+name: SFCA Upload
+
+on:
+  push:
+    branches:
+      - feature-ram-sfca
+
+jobs:
+
+  sfca-analysis:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Install Salesforce CLI
+        run: npm install @salesforce/cli --global
+
+      - name: Authenticate Salesforce
+        run: |
+          echo "${{ secrets.SF_AUTH_URL }}" > auth.txt
+
+          sf org login sfdx-url \
+            --sfdx-url-file auth.txt \
+            --alias dxvizdev \
+            --set-default
+
+      - name: Verify Org
+        run: |
+          sf org display --target-org dxvizdev
+
+      - name: Load SFCA Results
+        run: |
+          node scripts/load-sfca.js
+---
+const fs = require('fs');
+const jsforce = require('jsforce');
+const { execSync } = require('child_process');
+
+async function main() {
+
+    console.log('Getting Salesforce access token...');
+
+    const accessToken = execSync(
+        'sf org display --target-org sfca-org --json',
+        { encoding: 'utf8' }
+    );
+
+    const auth = JSON.parse(accessToken);
+
+    const conn = new jsforce.Connection({
+        instanceUrl: auth.result.instanceUrl,
+        accessToken: auth.result.accessToken
+    });
+
+    console.log('Reading sfca_results.json');
+
+    const data = JSON.parse(
+        fs.readFileSync('./sfca_results.json', 'utf8')
+    );
+
+    console.log('Creating Scan_Run__c');
+
+    const runResult =
+        await conn.sobject('Scan_Run__c').create({
+
+            Run_Dir__c: data.runDir,
+
+            Analyzer_Version__c:
+                data.versions?.['code-analyzer'] || '',
+
+            Regex_Version__c:
+                data.versions?.regex || '',
+
+            PMD_Version__c:
+                data.versions?.pmd || '',
+
+            Total_Violations__c:
+                data.violationCounts?.total || 0,
+
+            SEV1_Count__c:
+                data.violationCounts?.sev1 || 0,
+
+            SEV2_Count__c:
+                data.violationCounts?.sev2 || 0,
+
+            SEV3_Count__c:
+                data.violationCounts?.sev3 || 0,
+
+            SEV4_Count__c:
+                data.violationCounts?.sev4 || 0,
+
+            SEV5_Count__c:
+                data.violationCounts?.sev5 || 0
+        });
+
+    const scanRunId = runResult.id;
+
+    console.log(
+        `Created Scan_Run__c : ${scanRunId}`
+    );
+
+    for (const violation of data.violations) {
+
+        const violationResult =
+            await conn
+                .sobject('Scan_Violation__c')
+                .create({
+
+                    Scan_Run__c:
+                        scanRunId,
+
+                    Rule__c:
+                        violation.rule,
+
+                    Engine__c:
+                        violation.engine,
+
+                    Severity__c:
+                        violation.severity,
+
+                    Primary_Location_Index__c:
+                        violation.primaryLocationIndex,
+
+                    Message__c:
+                        violation.message,
+
+                    Tags__c:
+                        JSON.stringify(
+                            violation.tags || []
+                        ),
+
+                    Resources__c:
+                        JSON.stringify(
+                            violation.resources || []
+                        )
+                });
+
+        const violationId =
+            violationResult.id;
+
+        for (const location of violation.locations || []) {
+
+            await conn
+                .sobject(
+                    'Violation_Location__c'
+                )
+                .create({
+
+                    Scan_Violation__c:
+                        violationId,
+
+                    File_Path__c:
+                        location.file,
+
+                    Start_Line__c:
+                        location.startLine,
+
+                    Start_Column__c:
+                        location.startColumn,
+
+                    End_Line__c:
+                        location.endLine,
+
+                    End_Column__c:
+                        location.endColumn
+                });
+        }
+    }
+
+    console.log(
+        'SFCA Results Successfully Loaded'
+    );
+}
+
+main().catch(error => {
+    console.error(error);
+    process.exit(1);
+});
