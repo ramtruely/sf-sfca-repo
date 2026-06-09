@@ -1,8 +1,13 @@
-- name: Test Insert
+- name: List Objects
   run: |
-    sf data create record \
-      --sobject Scan_Run__c \
-      --values "Run_Dir__c=GitHubTest Total_Violations__c=1" \
+    sf data query \
+      --query "SELECT QualifiedApiName FROM EntityDefinition WHERE QualifiedApiName LIKE '%Scan%' OR QualifiedApiName LIKE '%Code%'" \
+      --target-org dxvizdev
+---
+- name: Find Object
+  run: |
+    sf data query \
+      --query "SELECT QualifiedApiName FROM EntityDefinition" \
       --target-org dxvizdev
 ---
 const fs = require('fs');
