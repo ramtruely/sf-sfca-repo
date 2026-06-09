@@ -1,45 +1,143 @@
-sf org login web \
---alias DXVIZDEV \
---instance-url https://test.salesforce.com
 ---
-sf org login web \
---alias DXVIZDEV \
---instance-url https://test.salesforce.com
+const fs = require('fs');
+const jsforce = require('jsforce');
 
----
-sf org display \
--o DXVIZDEV \
---verbose
+async function main() {
 
-----
-package.json
---
-{
-  "name": "sfca-loader",
-  "version": "1.0.0"
+    const conn = new jsforce.Connection({
+        instanceUrl: process.env.SF_INSTANCE_URL,
+        accessToken: process.env.SF_ACCESS_TOKEN
+    });
+
+    const data = JSON.parse(
+        fs.readFileSync('./sfca_results.json', 'utf8')
+    );
+
+    console.log('Creating Scan_Run__c');
+
+    const runResult =
+        await conn.sobject('Scan_Run__c').create({
+
+            Run_Dir__c: data.runDir,
+
+            Analyzer_Version__c:
+                data.versions?.['code-analyzer'] || '',
+
+            Regex_Version__c:
+                data.versions?.regex || '',
+
+            PMD_Version__c:
+                data.versions?.pmd || '',
+
+            Total_Violations__c:
+                data.violationCounts?.total || 0,
+
+            SEV1_Count__c:
+                data.violationCounts?.sev1 || 0,
+
+            SEV2_Count__c:
+                data.violationCounts?.sev2 || 0,
+
+            SEV3_Count__c:
+                data.violationCounts?.sev3 || 0,
+
+            SEV4_Count__c:
+                data.violationCounts?.sev4 || 0,
+
+            SEV5_Count__c:
+                data.violationCounts?.sev5 || 0
+        });
+
+    const scanRunId = runResult.id;
+
+    console.log(`Created Scan_Run__c: ${scanRunId}`);
+
+    for (const violation of data.violations || []) {
+
+        const violationResult =
+            await conn.sobject('Scan_Violation__c').create({
+
+                Scan_Run__c: scanRunId,
+                Rule__c: violation.rule,
+                Engine__c: violation.engine,
+                Severity__c: violation.severity,
+                Primary_Location_Index__c:
+                    violation.primaryLocationIndex || 0,
+                Message__c: violation.message || '',
+                Tags__c:
+                    (violation.tags || []).join(','),
+                Resources__c:
+                    (violation.resources || []).join(',')
+            });
+
+        const violationId =
+            violationResult.id;
+
+        for (const location of violation.locations || []) {
+
+            await conn
+                .sobject('Violation_Location__c')
+                .create({
+
+                    Scan_Violation__c:
+                        violationId,
+
+                    File_Path__c:
+                        location.file,
+
+                    Start_Line__c:
+                        location.startLine,
+
+                    Start_Column__c:
+                        location.startColumn,
+
+                    End_Line__c:
+                        location.endLine,
+
+                    End_Column__c:
+                        location.endColumn
+                });
+        }
+    }
+
+    console.log(
+        'SFCA Results Uploaded Successfully'
+    );
 }
------
-name: Load SFCA Results
+
+main().catch(error => {
+    console.error(error);
+    process.exit(1);
+});
+--
+
+name: SFCA Upload
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - feature-ram-sfca
 
 jobs:
-
-  load-results:
+  upload-sfca:
 
     runs-on: ubuntu-latest
 
     steps:
 
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install Salesforce CLI
         run: npm install -g @salesforce/cli
+
+      - name: Install Dependencies
+        run: npm ci
 
       - name: Authenticate Salesforce
         run: |
@@ -47,16 +145,21 @@ jobs:
 
           sf org login sfdx-url \
             --sfdx-url-file auth.txt \
-            --alias DXVIZDEV
+            --alias dxvizdev \
+            --set-default
 
-      - name: Set Default Org
+      - name: Get Org Details
         run: |
-          sf config set target-org=DXVIZDEV
+          sf org display --target-org dxvizdev --json > org.json
 
-      - name: Verify Org
+      - name: Export Auth Variables
         run: |
-          sf org display
+          echo "SF_INSTANCE_URL=$(cat org.json | jq -r '.result.instanceUrl')" >> $GITHUB_ENV
+          echo "SF_ACCESS_TOKEN=$(cat org.json | jq -r '.result.accessToken')" >> $GITHUB_ENV
 
-      - name: Execute Loader
+      - name: Load SFCA Results
+        env:
+          SF_INSTANCE_URL: ${{ env.SF_INSTANCE_URL }}
+          SF_ACCESS_TOKEN: ${{ env.SF_ACCESS_TOKEN }}
         run: |
           node scripts/load-sfca.js
