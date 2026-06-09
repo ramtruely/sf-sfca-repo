@@ -46,7 +46,8 @@ jobs:
         run: |
           sf project deploy start \
             --source-dir force-app \
-            --ignore-conflicts
+            --ignore-conflicts \
+            --wait 30
 
       - name: Install Salesforce Code Analyzer
         run: |
@@ -59,7 +60,7 @@ jobs:
             --format json \
             --outfile sfca-results.json
 
-      - name: Install Dependencies
+      - name: Install NPM Dependencies
         run: |
           npm install
 
@@ -67,7 +68,7 @@ jobs:
         run: |
           node scripts/load-sfca.js
 
-      - name: Upload SFCA Artifact
+      - name: Upload SFCA Report
         uses: actions/upload-artifact@v4
         with:
           name: sfca-results
