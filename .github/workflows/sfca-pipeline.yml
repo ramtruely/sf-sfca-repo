@@ -74,8 +74,9 @@ jobs:
           name: sfca-results
           path: sfca-results.json
 
-      - name: Verify Objects
+      - name: Show Deploy Result
         run: |
-          sf data query \
-          --query "SELECT Id, Name, Branch__c, Commit_Id__c FROM Code_Analyzer__c LIMIT 1" \
-          --target-org SFCA    
+          sf project deploy start \
+          --source-dir force-app \
+          --target-org SFCA \
+          --verbose 
