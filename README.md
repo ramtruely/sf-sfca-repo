@@ -19,3 +19,9 @@
       --values "Name=TestAnalyzer" \
       --target-org dxvizdev \
       --json
+  --
+  - name: Describe Object
+  run: |
+    sf schema sobject describe \
+      --sobject dx_Code_Analyzer__c \
+      --target-org dxvizdev
