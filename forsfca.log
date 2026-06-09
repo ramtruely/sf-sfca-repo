@@ -1,3 +1,9 @@
+- name: Test Insert
+  run: |
+    sf data create record \
+      --sobject Scan_Run__c \
+      --values "Run_Dir__c=GitHubTest Total_Violations__c=1" \
+      --target-org dxvizdev
 ---
 const fs = require('fs');
 const jsforce = require('jsforce');
