@@ -1,35 +1,27 @@
-name: SFCA Upload
+name: upload-sfca
 
 on:
-  push:
-    branches:
-      - feature-ram-sfca
+  workflow_dispatch:
 
 jobs:
-  upload-sfca:
-
+  upload:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
       - name: Install Salesforce CLI
-        run: npm install -g @salesforce/cli
+        run: |
+          npm install -g @salesforce/cli
 
       - name: Install Dependencies
-        run: npm install
+        run: |
+          npm install
 
       - name: Authenticate Salesforce
         run: |
           echo "${{ secrets.SF_AUTH_URL }}" > auth.txt
-
           sf org login sfdx-url \
             --sfdx-url-file auth.txt \
             --alias dxvizdev \
@@ -37,13 +29,18 @@ jobs:
 
       - name: Verify Login
         run: |
-          sf org display --target-org dxvizdev
+          sf org list
+
+      - name: Verify SFCA Results
+        run: |
+          ls -ltr
+          cat sfca_results.json | head -50
 
       - name: Upload SFCA Results
         env:
           GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_SHA: ${{ github.sha }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_SHA: ${{ github.sha }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           node scripts/load-sfca.js
