@@ -73,3 +73,9 @@ jobs:
         with:
           name: sfca-results
           path: sfca-results.json
+
+      - name: Verify Objects
+        run: |
+          sf data query \
+          --query "SELECT Id, Name, Branch__c, Commit_Id__c FROM Code_Analyzer__c LIMIT 1" \
+          --target-org SFCA    
