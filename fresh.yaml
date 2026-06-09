@@ -1,4 +1,4 @@
-name: upload-sfca
+name: SFCA Upload
 
 on:
   push:
@@ -12,9 +12,11 @@ jobs:
 
     steps:
 
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
@@ -37,7 +39,7 @@ jobs:
         run: |
           sf org display --target-org dxvizdev
 
-      - name: Load SFCA Results
+      - name: Upload SFCA Results
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_SHA: ${{ github.sha }}
