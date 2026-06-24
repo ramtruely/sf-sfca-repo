@@ -1,0 +1,68 @@
+
+---
+echo "$RESPONSE" | jq '
+{
+  pullRequest:{
+      number:env.PR_NUMBER,
+      title:env.PR_TITLE,
+      url:env.PR_URL,
+      author:env.PR_AUTHOR,
+      repository:env.GITHUB_REPOSITORY,
+      sourceBranch:env.SOURCE_BRANCH,
+      targetBranch:env.TARGET_BRANCH
+  },
+
+  workflow:{
+      name:env.WORKFLOW,
+      runId:env.RUN_ID,
+      runNumber:env.RUN_NUMBER,
+      commitSha:env.COMMIT_SHA,
+      generatedAt:now|strftime("%Y-%m-%dT%H:%M:%SZ")
+  },
+
+  summary:{
+      totalChangedFiles:length,
+      totalAdditions:(map(.additions)|add),
+      totalDeletions:(map(.deletions)|add),
+      totalChanges:(map(.changes)|add)
+  },
+
+  changedFiles:
+      map({
+
+        fileName:.filename,
+
+        status:.status,
+
+        additions:.additions,
+
+        deletions:.deletions,
+
+        changes:.changes,
+
+        patch:.patch
+
+      })
+
+}
+' > "${GITHUB_WORKSPACE}/sfca-context.json"
+---
+- name: Generate SFCA Context JSON
+  if: always() && github.event_name == 'pull_request'
+  shell: bash
+  env:
+    GITHUB_TOKEN: ${{ inputs.github-token }}
+    GITHUB_REPOSITORY: ${{ github.repository }}
+    PR_NUMBER: ${{ github.event.pull_request.number }}
+    PR_TITLE: ${{ github.event.pull_request.title }}
+    PR_URL: ${{ github.event.pull_request.html_url }}
+    PR_AUTHOR: ${{ github.actor }}
+    SOURCE_BRANCH: ${{ github.head_ref }}
+    TARGET_BRANCH: ${{ github.base_ref }}
+    COMMIT_SHA: ${{ github.sha }}
+    WORKFLOW: ${{ github.workflow }}
+    RUN_ID: ${{ github.run_id }}
+    RUN_NUMBER: ${{ github.run_number }}
+  run: |
+    chmod +x ${{ github.action_path }}/generate-sfca-context.sh
+    ${{ github.action_path }}/generate-sfca-context.sh
