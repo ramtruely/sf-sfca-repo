@@ -1,0 +1,112 @@
+- name: Generate SFCA Report
+  if: always() && github.event_name == 'pull_request'
+  shell: bash
+  env:
+    GITHUB_TOKEN: ${{ inputs.github-token }}
+    GITHUB_REPOSITORY: ${{ github.repository }}
+    REPOSITORY_OWNER: ${{ github.repository_owner }}
+
+    PR_NUMBER: ${{ github.event.pull_request.number }}
+    PR_TITLE: ${{ github.event.pull_request.title }}
+    PR_URL: ${{ github.event.pull_request.html_url }}
+    PR_AUTHOR: ${{ github.actor }}
+
+    SOURCE_BRANCH: ${{ github.head_ref }}
+    TARGET_BRANCH: ${{ github.base_ref }}
+
+    COMMIT_SHA: ${{ github.sha }}
+
+    WORKFLOW: ${{ github.workflow }}
+    RUN_ID: ${{ github.run_id }}
+    RUN_NUMBER: ${{ github.run_number }}
+    RUN_ATTEMPT: ${{ github.run_attempt }}
+    EVENT_NAME: ${{ github.event_name }}
+    SERVER_URL: ${{ github.server_url }}
+
+    NR_URL: ${{ inputs.nr-url }}
+
+  run: |
+    chmod +x ${{ github.action_path }}/generate-sfca-context.sh
+    ${{ github.action_path }}/generate-sfca-context.sh
+
+---
+echo "Generating sfca-report.json..."
+
+---
+SFCA_RESULTS="${GITHUB_WORKSPACE}/sfca_results.json"
+
+---
+
+jq -n \
+  --argjson github "$RESPONSE" \
+  --slurpfile sfca "$SFCA_RESULTS" '
+{
+  pullRequest:{
+      number:env.PR_NUMBER,
+      title:env.PR_TITLE,
+      url:env.PR_URL,
+      author:env.PR_AUTHOR,
+      repository:env.GITHUB_REPOSITORY,
+      sourceBranch:env.SOURCE_BRANCH,
+      targetBranch:env.TARGET_BRANCH
+  },
+
+  repository:{
+      owner:env.REPOSITORY_OWNER,
+      name:env.GITHUB_REPOSITORY
+  },
+
+  workflow:{
+      name:env.WORKFLOW,
+      runId:env.RUN_ID,
+      runNumber:env.RUN_NUMBER,
+      runAttempt:env.RUN_ATTEMPT,
+      event:env.EVENT_NAME,
+      runUrl:(env.SERVER_URL+"/"+env.GITHUB_REPOSITORY+"/actions/runs/"+env.RUN_ID),
+      commitSha:env.COMMIT_SHA,
+      generatedAt:(now|strftime("%Y-%m-%dT%H:%M:%SZ"))
+  },
+
+  newRelic:{
+      dashboardUrl:env.NR_URL
+  },
+
+  summary:{
+      totalChangedFiles:($github|length),
+      totalAdditions:($github|map(.additions)|add),
+      totalDeletions:($github|map(.deletions)|add),
+      totalChanges:($github|map(.changes)|add)
+  },
+
+  analysis:{
+      runDir:$sfca[0].runDir,
+      violationCounts:$sfca[0].violationCounts,
+      versions:$sfca[0].versions,
+      violations:$sfca[0].violations
+  },
+
+  changedFiles:
+      ($github|map({
+
+          fileName:.filename,
+
+          status:.status,
+
+          additions:.additions,
+
+          deletions:.deletions,
+
+          changes:.changes,
+
+          blobUrl:.blob_url,
+
+          rawUrl:.raw_url,
+
+          patch:.patch
+
+      }))
+
+}
+' > "${GITHUB_WORKSPACE}/sfca-report.json"
+
+---
